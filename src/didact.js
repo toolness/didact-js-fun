@@ -68,12 +68,11 @@ function render(element, container) {
 
 let nextUnitOfWork = null;
 
-let unitsOfWorkDoneThisChunk = 0;
-
 function workLoop() {
   let shouldYield = false;
-  unitsOfWorkDoneThisChunk = 0;
+  let unitsOfWorkDoneThisChunk = 0;
   while (nextUnitOfWork && !shouldYield) {
+    unitsOfWorkDoneThisChunk += 1;
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
     shouldYield = unitsOfWorkDoneThisChunk >= UNIT_OF_WORK_CHUNK_SIZE;
   }
@@ -81,8 +80,6 @@ function workLoop() {
 }
 
 function performUnitOfWork(fiber) {
-  unitsOfWorkDoneThisChunk += 1;
-
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
