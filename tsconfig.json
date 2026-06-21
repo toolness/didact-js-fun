@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": [],
+
+    // JSX still compiles to our own factory — same as vite.config.js. This is
+    // only used for type-checking; Vite/esbuild does the actual transform.
+    "jsx": "react",
+    "jsxFactory": "Didact.createElement",
+    "jsxFragmentFactory": "Didact.Fragment",
+
+    // Let .js/.jsx coexist with .ts/.tsx, but don't type-check the JS — so the
+    // existing code (didact.js, main.jsx, instrument.js) stays effectively
+    // `any` until YOU opt a file in by renaming it to .ts/.tsx.
+    "allowJs": true,
+    "checkJs": false,
+
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
