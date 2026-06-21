@@ -19,6 +19,27 @@
 //   Step VII  — Function Components
 //   Step VIII — Hooks (useState)
 
+type Fiber = {
+  type: ElementType | null,
+  parent: Fiber | null,
+  child: Fiber | null,
+  sibling: Fiber | null,
+  props: Props,
+  dom: HTMLElement | Text | null
+}
+
+export type ElementType = keyof HTMLElementTagNameMap | typeof TEXT_ELEMENT
+
+export type Element = {
+  type: ElementType;
+  props: Props
+}
+
+export type Props = {
+  children: Element[],
+  [k: string]: any
+}
+
 const TEXT_ELEMENT = "TEXT_ELEMENT";
 
 // We're just going to perform a fixed amount of work before giving control back to the browser, it makes it easier to see this thing working in practice.
@@ -27,13 +48,13 @@ const UNIT_OF_WORK_CHUNK_SIZE = 1;
 // make it big so we can really see it happen
 const MS_BETWEEN_CHUNKS = 250;
 
-let nextUnitOfWork = null;
+let nextUnitOfWork: Fiber|null = null;
 
-let wipRoot = null;
+let wipRoot: Fiber|null = null;
 
 let isInitialized = false;
 
-function createElement(type, props, ...children) {
+function createElement(type: string, props: Omit<Props, "children">, ...children: Array<Element|string>) {
   return {
     type,
     props: {
@@ -45,7 +66,7 @@ function createElement(type, props, ...children) {
   };
 }
 
-function createTextElement(text) {
+function createTextElement(text: string) {
   return {
     type: TEXT_ELEMENT,
     props: {
@@ -55,22 +76,30 @@ function createTextElement(text) {
   };
 }
 
-function createDom(fiber) {
+function createDom(fiber: Fiber) {
+  if (fiber.type === null) {
+    throw new Error("fiber type must be defined");
+  }
   const dom =
     fiber.type === TEXT_ELEMENT
       ? document.createTextNode("")
       : document.createElement(fiber.type);
-  const isProperty = (key) => key !== "children";
+  const isProperty = (key: string) => key !== "children";
   Object.keys(fiber.props)
     .filter(isProperty)
     .forEach((name) => {
-      dom[name] = fiber.props[name];
+      // TODO: Don't cast to `any` here.
+      (dom as any)[name] = fiber.props[name];
     });
   return dom;
 }
 
-function render(element, container) {
+function render(element: Element, container: HTMLElement) {
   wipRoot = {
+    type: null,
+    parent: null,
+    child: null,
+    sibling: null,
     dom: container,
     props: {
       children: [element],
@@ -83,8 +112,15 @@ function render(element, container) {
   }
 }
 
-function commitWork(fiber) {
+function commitWork(fiber: Fiber) {
+  if (!fiber.dom) {
+    throw new Error("fiber must have dom")
+  }
+
   if (fiber.parent) {
+    if (!fiber.parent.dom) {
+      throw new Error("fiber parent must have dom")
+    }
     fiber.parent.dom.appendChild(fiber.dom);
   }
 
@@ -112,7 +148,7 @@ function workLoop() {
   setTimeout(workLoop, MS_BETWEEN_CHUNKS);
 }
 
-function performUnitOfWork(fiber) {
+function performUnitOfWork(fiber: Fiber): Fiber | null {
   // [viz hook] No-op unless the visualizer (src/instrument.js) is loaded.
   // Safe to delete — nothing in Didact depends on it.
   globalThis.__didactTrace?.(fiber);
@@ -123,21 +159,26 @@ function performUnitOfWork(fiber) {
 
   const elements = fiber.props.children;
   let index = 0;
-  let prevSibling = null;
+  let prevSibling: Fiber|null = null;
 
   while (index < elements.length) {
     const element = elements[index];
 
-    const newFiber = {
+    const newFiber: Fiber = {
       type: element.type,
       props: element.props,
       parent: fiber,
+      child: null,
+      sibling: null,
       dom: null,
     };
 
     if (index === 0) {
       fiber.child = newFiber;
     } else {
+      if (!prevSibling) {
+        throw new Error("prevSibling must be defined")
+      }
       prevSibling.sibling = newFiber;
     }
 
@@ -149,13 +190,15 @@ function performUnitOfWork(fiber) {
     return fiber.child;
   }
 
-  let nextFiber = fiber;
+  let nextFiber: Fiber|null = fiber;
   while (nextFiber) {
     if (nextFiber.sibling) {
       return nextFiber.sibling;
     }
     nextFiber = nextFiber.parent;
   }
+
+  return null
 }
 
 const Fragment = "FRAGMENT";

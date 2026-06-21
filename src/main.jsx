@@ -1,7 +1,7 @@
 // `Didact` MUST be in scope here: vite compiles the JSX below into
 // Didact.createElement(...) calls (see vite.config.js). If you remove this
 // import you'll get "Didact is not defined" at runtime.
-import Didact from "./didact.js";
+import Didact from "./didact.ts";
 import "./style.css";
 // Installs the fiber-graph visualizer (globalThis.__didactTrace). Must come
 // before render() so the work loop is already being traced. Pure side-effect
