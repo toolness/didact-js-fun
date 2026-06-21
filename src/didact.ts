@@ -174,6 +174,9 @@ function commitWork(fiber: Fiber) {
       unreachable(fiber.effectTag)
   }
 
+  // [debug hook] No-op unless a debug tool (src/debug-overlay.js) is loaded.
+  globalThis.__didactCommit?.(fiber);
+
   if (fiber.child) {
     commitWork(fiber.child);
   }

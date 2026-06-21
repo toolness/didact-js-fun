@@ -7,6 +7,9 @@ import "./style.css";
 // before render() so the work loop is already being traced. Pure side-effect
 // import — delete this line to turn the visualization off.
 import "./instrument.js";
+// Installs the commit-flash overlay (globalThis.__didactCommit). Highlights
+// added/changed DOM nodes on commit. Pure side-effect import — delete to disable.
+import "./debug-overlay.js";
 
 const container = document.getElementById("root");
 

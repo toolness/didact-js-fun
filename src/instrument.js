@@ -41,6 +41,11 @@ const cy = cytoscape({
     },
     { selector: "node.root", style: { "background-color": "#1a1a2e" } },
     { selector: "node.text", style: { "background-color": "#8b80e0", "font-style": "italic" } },
+    // Effect-tag coloring (background): green = added (PLACEMENT), blue =
+    // actually changed (UPDATE), gray + faded = UPDATE that changed nothing.
+    { selector: "node.eff-placement", style: { "background-color": "#23a45a" } },
+    { selector: "node.eff-update", style: { "background-color": "#2f6fed" } },
+    { selector: "node.eff-noop", style: { "background-color": "#9aa0ad", opacity: 0.4 } },
     {
       selector: "node.active",
       style: {
@@ -49,7 +54,6 @@ const cy = cytoscape({
         "border-color": "#ffb3c8",
       },
     },
-    { selector: "node.done", style: { opacity: 0.85 } },
     // Hidden = exists in the graph (so it keeps its laid-out position) but not
     // shown at the currently-scrubbed frame.
     { selector: ".hidden", style: { display: "none" } },
@@ -209,6 +213,34 @@ function kindClass(fiber) {
   return "element";
 }
 
+const isEvent = (key) => key.startsWith("on");
+const isOwnProp = (key) => key !== "children" && !isEvent(key);
+
+// Did this fiber's own props/handlers actually change vs. its previous fiber?
+// (Same comparison updateDom does — children are separate fibers, ignored here.)
+function propsChanged(fiber) {
+  const prev = fiber.alternate?.props ?? {};
+  const next = fiber.props ?? {};
+  for (const key of new Set([...Object.keys(prev), ...Object.keys(next)])) {
+    if (!isOwnProp(key) && !isEvent(key)) continue;
+    if (prev[key] !== next[key]) return true;
+  }
+  return false;
+}
+
+// effectTag is already set by the time a fiber is traced, so we can color the
+// node by it. An UPDATE whose props didn't actually change is a "no-op".
+function effectClass(fiber) {
+  switch (fiber.effectTag) {
+    case "PLACEMENT":
+      return "eff-placement";
+    case "UPDATE":
+      return propsChanged(fiber) ? "eff-update" : "eff-noop";
+    default:
+      return ""; // root / untagged
+  }
+}
+
 function reset() {
   pause();
   cy.elements().remove();
@@ -349,7 +381,11 @@ function draw(fiber) {
   if (!fiber.parent) rootNodeId = id;
 
   if (!added.has(id)) {
-    cy.add({ group: "nodes", data: { id, label: labelFor(fiber) }, classes: kindClass(fiber) });
+    cy.add({
+      group: "nodes",
+      data: { id, label: labelFor(fiber) },
+      classes: `${kindClass(fiber)} ${effectClass(fiber)}`.trim(),
+    });
     added.add(id);
 
     if (fiber.parent) {

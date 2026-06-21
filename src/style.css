@@ -98,6 +98,36 @@ a {
     height 80ms ease-out;
 }
 
+/* Commit-flash overlay (src/debug-overlay.js): a translucent box that fades out
+   over a node that was just added (green) or actually changed (blue). */
+.didact-flash {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  border-radius: 3px;
+  border: 2px solid;
+  animation: didact-flash-fade 700ms ease-out forwards;
+}
+
+.didact-flash-placement {
+  border-color: #23a45a;
+  background: rgba(35, 164, 90, 0.25);
+}
+
+.didact-flash-update {
+  border-color: #2f6fed;
+  background: rgba(47, 111, 237, 0.22);
+}
+
+@keyframes didact-flash-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 #graph-controls {
   display: flex;
   align-items: center;
@@ -156,14 +186,22 @@ a {
   margin-right: 0.3rem;
 }
 
+.legend .swatch.eff-placement {
+  background: #23a45a;
+}
+
+.legend .swatch.eff-update {
+  background: #2f6fed;
+}
+
+.legend .swatch.eff-noop {
+  background: #9aa0ad;
+  opacity: 0.45;
+}
+
 .legend .swatch.active {
   background: #e0245e;
   border: 2px solid #ffb3c8;
-}
-
-.legend .swatch.done {
-  background: #5b4bdb;
-  opacity: 0.85;
 }
 
 .legend .line {
