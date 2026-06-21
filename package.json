@@ -1,0 +1,15 @@
+{
+  "name": "didact-js-fun",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Building my own React (Didact) by following https://pomb.us/build-your-own-react/",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
