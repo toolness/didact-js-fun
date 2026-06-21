@@ -31,14 +31,18 @@ let nextUnitOfWork = null;
 
 let wipRoot = null;
 
+let isInitialized = false;
+
 function createElement(type, props, ...children) {
   return {
     type,
     props: {
       ...props,
-      children: children.map(child => typeof child === "object" ? child : createTextElement(child))
-    }
-  }
+      children: children.map((child) =>
+        typeof child === "object" ? child : createTextElement(child),
+      ),
+    },
+  };
 }
 
 function createTextElement(text) {
@@ -46,17 +50,22 @@ function createTextElement(text) {
     type: TEXT_ELEMENT,
     props: {
       nodeValue: text,
-      children: []
-    }
-  }
+      children: [],
+    },
+  };
 }
 
 function createDom(fiber) {
-  const dom = fiber.type === TEXT_ELEMENT ? document.createTextNode("") : document.createElement(fiber.type);
-  const isProperty = key => key !== "children";
-  Object.keys(fiber.props).filter(isProperty).forEach(name => {
-    dom[name] = fiber.props[name];
-  });
+  const dom =
+    fiber.type === TEXT_ELEMENT
+      ? document.createTextNode("")
+      : document.createElement(fiber.type);
+  const isProperty = (key) => key !== "children";
+  Object.keys(fiber.props)
+    .filter(isProperty)
+    .forEach((name) => {
+      dom[name] = fiber.props[name];
+    });
   return dom;
 }
 
@@ -65,10 +74,13 @@ function render(element, container) {
     dom: container,
     props: {
       children: [element],
-    }
+    },
   };
   nextUnitOfWork = wipRoot;
-  workLoop();
+  if (!isInitialized) {
+    isInitialized = true;
+    setTimeout(workLoop, 0);
+  }
 }
 
 function commitWork(fiber) {
