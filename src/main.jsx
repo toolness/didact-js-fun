@@ -8,20 +8,25 @@ import "./style.css";
 // import — delete this line to turn the visualization off.
 import "./instrument.js";
 
+const container = document.getElementById("root");
+
 // This is plain JSX — but it does NOT become React.createElement.
 // It becomes Didact.createElement. That's the whole point.
-const element = (
-  <div id="app">
-    <h1>Hello from Didact 👋</h1>
-    <p>
-      This JSX was transpiled to <code>Didact.createElement</code>, not React.
-    </p>
-    <p className="hint">
-      Open <code>src/didact.js</code> and start working through{" "}
-      <a href="https://pomb.us/build-your-own-react/">build your own react</a>.
-    </p>
-  </div>
-);
+const rerender = (value, count) => {
+  const element = (
+    <div id="app">
+      <h1>Hello from Didact 👋</h1>
+      <p>
+        This JSX was transpiled to <code>Didact.createElement</code>, not React.
+      </p>
+      <input onInput={(e) => rerender(e.target.value.toUpperCase(), count)} value={value} />
+      <p>
+        Count is <span>{count}</span>
+      </p>
+      <button onClick={(e) => rerender(value, count + 1)}>Increment</button>
+    </div>
+  );
+  Didact.render(element, container);
+}
 
-const container = document.getElementById("root");
-Didact.render(element, container);
+rerender("HALLO", 0);
