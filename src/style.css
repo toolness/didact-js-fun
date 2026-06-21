@@ -84,6 +84,20 @@ a {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
 }
 
+/* Overlay box drawn over a real DOM node when its fiber is hovered/clicked. */
+#dom-highlight {
+  position: fixed;
+  z-index: 9999;
+  display: none;
+  pointer-events: none;
+  border: 2px solid #e0245e;
+  background: rgba(224, 36, 94, 0.12);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+  transition: top 80ms ease-out, left 80ms ease-out, width 80ms ease-out,
+    height 80ms ease-out;
+}
+
 #graph-controls {
   display: flex;
   align-items: center;

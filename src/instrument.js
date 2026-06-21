@@ -85,6 +85,87 @@ const startBtn = document.getElementById("graph-start");
 const frameLabel = document.getElementById("graph-frame");
 const PLAYBACK_MS = 120;
 
+// --- DOM-node highlight overlay ---------------------------------------------
+// Hovering (or clicking to pin) a fiber node draws a box over the *real* DOM
+// node it produced, in the App Output pane. The box is an absolutely-positioned
+// overlay on top of the page — we never touch the highlighted node itself.
+
+let pinnedId = null;
+
+const highlight = document.createElement("div");
+highlight.id = "dom-highlight";
+document.body.appendChild(highlight);
+
+// Get the on-screen rect of a fiber's DOM node. Text nodes have no
+// getBoundingClientRect, so we measure them with a Range to hug the text.
+function rectForDom(dom) {
+  if (!dom) return null;
+  if (dom.nodeType === Node.TEXT_NODE) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(dom);
+      return range.getBoundingClientRect();
+    } catch {
+      return dom.parentNode ? dom.parentNode.getBoundingClientRect() : null;
+    }
+  }
+  return dom.getBoundingClientRect();
+}
+
+function showHighlight(fiber) {
+  const rect = fiber && rectForDom(fiber.dom);
+  if (!rect) {
+    hideHighlight();
+    return;
+  }
+  highlight.style.display = "block";
+  highlight.style.top = `${rect.top}px`;
+  highlight.style.left = `${rect.left}px`;
+  highlight.style.width = `${rect.width}px`;
+  highlight.style.height = `${rect.height}px`;
+}
+
+function hideHighlight() {
+  highlight.style.display = "none";
+}
+
+const graphEl = document.getElementById("fiber-graph");
+
+cy.on("mouseover", "node", (evt) => {
+  if (graphEl) graphEl.style.cursor = "pointer";
+  if (!pinnedId) showHighlight(fiberById.get(evt.target.id()));
+});
+cy.on("mouseout", "node", () => {
+  if (graphEl) graphEl.style.cursor = "";
+  if (!pinnedId) hideHighlight();
+});
+// Click a node to pin its highlight (click again, or click empty space, to clear).
+cy.on("tap", "node", (evt) => {
+  const id = evt.target.id();
+  if (pinnedId === id) {
+    pinnedId = null;
+    hideHighlight();
+  } else {
+    pinnedId = id;
+    showHighlight(fiberById.get(id));
+  }
+});
+cy.on("tap", (evt) => {
+  if (evt.target === cy) {
+    pinnedId = null;
+    hideHighlight();
+  }
+});
+
+// The overlay is position:fixed (viewport coords), so keep it aligned when
+// anything scrolls or the window resizes; drop a transient (unpinned) box.
+function realignHighlight() {
+  if (pinnedId) showHighlight(fiberById.get(pinnedId));
+  else hideHighlight();
+}
+window.addEventListener("scroll", realignHighlight, true); // capture: catch inner scrolls too
+window.addEventListener("resize", realignHighlight);
+
 // --- identity & bookkeeping -------------------------------------------------
 
 const idForFiber = new WeakMap();
@@ -101,6 +182,7 @@ function idFor(fiber) {
 let added = new Set(); // node ids already in the graph
 let childrenByParent = new Map(); // parent id -> [child ids] in sibling order
 let parentOf = new Map(); // child id -> parent id (so new nodes slide out of their parent)
+let fiberById = new Map(); // node id -> fiber (to find its real DOM node on hover)
 let lastActiveId = null;
 let rootNodeId = null;
 const ANIM_MS = 220;
@@ -133,6 +215,9 @@ function reset() {
   added = new Set();
   childrenByParent = new Map();
   parentOf = new Map();
+  fiberById = new Map();
+  pinnedId = null;
+  hideHighlight();
   lastActiveId = null;
   rootNodeId = null;
   frames = [];
@@ -260,6 +345,7 @@ function draw(fiber) {
   if (!fiber.parent) reset();
 
   const id = idFor(fiber);
+  fiberById.set(id, fiber);
   if (!fiber.parent) rootNodeId = id;
 
   if (!added.has(id)) {
