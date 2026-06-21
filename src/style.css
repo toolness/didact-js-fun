@@ -84,6 +84,45 @@ a {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
 }
 
+#graph-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+#graph-controls button {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 6px;
+  background: #5b4bdb;
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+#graph-controls button:hover {
+  background: #4a3cc4;
+}
+
+#graph-scrubber {
+  flex: 1;
+  accent-color: #5b4bdb;
+  cursor: pointer;
+}
+
+.frame-label {
+  flex: none;
+  min-width: 4.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: #555;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;

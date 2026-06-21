@@ -1,8 +1,13 @@
-// Fiber-graph visualizer. This file is ENTIRELY separate from your Didact
-// library — it just listens. The only contact point is that performUnitOfWork
-// calls `globalThis.__didactTrace(fiber)` once per unit of work (the "[viz
-// hook]" line in didact.js). We install that function here and draw the fiber
-// tree as it grows, in lockstep with your work loop.
+// Fiber-graph visualizer. ENTIRELY separate from your Didact library — it just
+// listens via the single `globalThis.__didactTrace(fiber)` hook that
+// performUnitOfWork calls (the "[viz hook]" line in didact.js).
+//
+// Two features beyond a plain live graph:
+//   1. A recorded "movie": every trace call snapshots the cumulative graph
+//      state into frames[], and a scrubber / play button lets you replay and
+//      rewind independently of the work loop's timing.
+//   2. Siblings are ordered left-to-right in traversal order (see
+//      reorderSiblingsLTR) so the tree grows rightward, the way the DOM does.
 //
 // You never need to edit this file to work through the tutorial.
 
@@ -13,8 +18,6 @@ cytoscape.use(dagre);
 
 const cy = cytoscape({
   container: document.getElementById("fiber-graph"),
-  // Layout/zoom are driven entirely by us; disable user panning so the graph
-  // stays put while you watch it build.
   userZoomingEnabled: false,
   userPanningEnabled: false,
   boxSelectionEnabled: false,
@@ -36,11 +39,8 @@ const cy = cytoscape({
         "background-color": "#5b4bdb",
       },
     },
-    // The root container fiber.
     { selector: "node.root", style: { "background-color": "#1a1a2e" } },
-    // Text fibers (TEXT_ELEMENT) get a softer color.
     { selector: "node.text", style: { "background-color": "#8b80e0", "font-style": "italic" } },
-    // The fiber currently being processed by performUnitOfWork.
     {
       selector: "node.active",
       style: {
@@ -49,8 +49,10 @@ const cy = cytoscape({
         "border-color": "#ffb3c8",
       },
     },
-    // Fibers already processed.
     { selector: "node.done", style: { opacity: 0.85 } },
+    // Hidden = exists in the graph (so it keeps its laid-out position) but not
+    // shown at the currently-scrubbed frame.
+    { selector: ".hidden", style: { display: "none" } },
     {
       selector: "edge",
       style: {
@@ -59,12 +61,10 @@ const cy = cytoscape({
         "target-arrow-shape": "triangle",
       },
     },
-    // child links: solid, the actual tree shape.
     {
       selector: "edge.child",
       style: { "line-color": "#5b4bdb", "target-arrow-color": "#5b4bdb" },
     },
-    // sibling links: dashed, the horizontal chain between children.
     {
       selector: "edge.sibling",
       style: {
@@ -76,6 +76,14 @@ const cy = cytoscape({
     },
   ],
 });
+
+// --- DOM controls -----------------------------------------------------------
+
+const scrubber = document.getElementById("graph-scrubber");
+const playBtn = document.getElementById("graph-play");
+const startBtn = document.getElementById("graph-start");
+const frameLabel = document.getElementById("graph-frame");
+const PLAYBACK_MS = 120;
 
 // --- identity & bookkeeping -------------------------------------------------
 
@@ -92,7 +100,16 @@ function idFor(fiber) {
 
 let added = new Set(); // node ids already in the graph
 let childrenByParent = new Map(); // parent id -> [child ids] in sibling order
-let activeId = null;
+let parentOf = new Map(); // child id -> parent id (so new nodes slide out of their parent)
+let lastActiveId = null;
+let rootNodeId = null;
+const ANIM_MS = 220;
+
+// The recorded movie: one frame per trace call.
+// Each frame = { present: string[] of element ids, active: node id }.
+let frames = [];
+let following = true; // while true, the scrubber tracks the live latest frame
+let playTimer = null;
 
 function labelFor(fiber) {
   if (!fiber.parent) return "root";
@@ -111,51 +128,140 @@ function kindClass(fiber) {
 }
 
 function reset() {
+  pause();
   cy.elements().remove();
   added = new Set();
   childrenByParent = new Map();
-  activeId = null;
+  parentOf = new Map();
+  lastActiveId = null;
+  rootNodeId = null;
+  frames = [];
+  following = true;
+  scrubber.value = "0";
+  scrubber.max = "0";
+  updateLabel();
+}
+
+// --- layout -----------------------------------------------------------------
+
+function subtreeNodes(id) {
+  const out = [id];
+  const kids = childrenByParent.get(id);
+  if (kids) for (const c of kids) out.push(...subtreeNodes(c));
+  return out;
+}
+
+// Parents in top-down (BFS) order, so when we re-pack a parent's children we've
+// already placed that parent's whole subtree at the level above.
+function parentsTopDown() {
+  if (!rootNodeId) return [];
+  const out = [];
+  const queue = [rootNodeId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (childrenByParent.has(id)) {
+      out.push(id);
+      for (const c of childrenByParent.get(id)) queue.push(c);
+    }
+  }
+  return out;
+}
+
+// dagre lays the tree out but doesn't preserve sibling order left-to-right
+// (we exclude sibling edges, so it has no ordering info and tends to reverse).
+// Fix it ourselves: for each parent, place its child subtrees side by side in
+// sibling order, translating each whole subtree to keep its internal shape.
+function reorderSiblingsLTR() {
+  const GAP = 36;
+  cy.batch(() => {
+    // Pass 1, top-down: pack each parent's child subtrees side by side in
+    // sibling order, translating each whole subtree to preserve its shape.
+    for (const pid of parentsTopDown()) {
+      const kids = childrenByParent.get(pid);
+      if (!kids || kids.length < 2) continue;
+
+      const info = kids.map((cid) => {
+        const nodes = subtreeNodes(cid);
+        let min = Infinity;
+        let max = -Infinity;
+        for (const n of nodes) {
+          const x = cy.getElementById(n).position("x");
+          if (x < min) min = x;
+          if (x > max) max = x;
+        }
+        return { nodes, min, width: max - min };
+      });
+
+      let cursor = Math.min(...info.map((d) => d.min));
+      for (const d of info) {
+        const delta = cursor - d.min;
+        if (delta !== 0) {
+          for (const n of d.nodes) {
+            const node = cy.getElementById(n);
+            node.position("x", node.position("x") + delta);
+          }
+        }
+        cursor += d.width + GAP;
+      }
+    }
+
+    // Pass 2, bottom-up: center each parent over its immediate children (so a
+    // single-child parent like root sits directly above its child).
+    for (const pid of parentsTopDown().reverse()) {
+      const kids = childrenByParent.get(pid);
+      if (!kids || !kids.length) continue;
+      let min = Infinity;
+      let max = -Infinity;
+      for (const cid of kids) {
+        const x = cy.getElementById(cid).position("x");
+        if (x < min) min = x;
+        if (x > max) max = x;
+      }
+      cy.getElementById(pid).position("x", (min + max) / 2);
+    }
+  });
 }
 
 function relayout() {
-  // Lay out using only the nodes and the child edges. Excluding the sibling
-  // edges from the layout collection means dagre ranks purely by the tree
-  // structure (no crossings from horizontal sibling links); the dashed
-  // sibling edges are still drawn, just between already-positioned nodes.
+  // Remember where everything currently sits (visually) before we recompute.
+  const old = new Map();
+  cy.nodes().forEach((n) => old.set(n.id(), { ...n.position() }));
+
+  // Rank by the tree only (exclude sibling edges); animate off so we can
+  // post-process positions synchronously...
   cy.elements()
     .not("edge.sibling")
-    .layout({
-      name: "dagre",
-      rankDir: "TB",
-      nodeSep: 24,
-      rankSep: 48,
-      animate: true,
-      animationDuration: 180,
-      fit: true,
-      padding: 24,
-    })
+    .layout({ name: "dagre", rankDir: "TB", nodeSep: 24, rankSep: 48, fit: false, animate: false })
     .run();
+  reorderSiblingsLTR();
+
+  // The model now sits at the freshly-computed target positions. Frame that
+  // final layout first, so the viewport is stable while nodes glide in.
+  cy.fit(undefined, 28);
+
+  // Then animate each node from its old spot to the new one (NOT inside
+  // cy.batch — batched position writes wouldn't be flushed before animate()
+  // samples the "from" position, and it'd animate target→target, i.e. snap).
+  // Brand-new nodes start at their parent's position, so they grow out of it.
+  cy.nodes().forEach((n) => {
+    const id = n.id();
+    const target = { ...n.position() };
+    const start = old.get(id) ?? old.get(parentOf.get(id)) ?? target;
+    if (start.x === target.x && start.y === target.y) return; // nothing to move
+    n.stop();
+    n.position(start);
+    n.animate({ position: target }, { duration: ANIM_MS, easing: "ease-out" });
+  });
 }
 
-// --- the trace hook itself --------------------------------------------------
-
-globalThis.__didactTrace = function trace(fiber) {
-  // The viz must never break Didact: this hook runs *inside* performUnitOfWork,
-  // so a thrown error here would kill the work loop. Swallow + log instead.
-  try {
-    draw(fiber);
-  } catch (err) {
-    console.error("[fiber-viz] trace failed (ignored):", err);
-  }
-};
+// --- live build -------------------------------------------------------------
 
 function draw(fiber) {
-  // A fiber with no parent is a fresh render root — start the graph over.
   if (!fiber.parent) reset();
 
   const id = idFor(fiber);
+  if (!fiber.parent) rootNodeId = id;
 
-  // Add this fiber's node the first time we see it.
   if (!added.has(id)) {
     cy.add({ group: "nodes", data: { id, label: labelFor(fiber) }, classes: kindClass(fiber) });
     added.add(id);
@@ -168,8 +274,6 @@ function draw(fiber) {
         classes: "child",
       });
 
-      // Siblings are visited in order for a given parent, so the previous
-      // entry in this parent's list is this fiber's left sibling.
       const sibs = childrenByParent.get(pid) ?? [];
       if (sibs.length) {
         const prev = sibs[sibs.length - 1];
@@ -181,15 +285,117 @@ function draw(fiber) {
       }
       sibs.push(id);
       childrenByParent.set(pid, sibs);
+      parentOf.set(id, pid);
     }
   }
 
-  // Move the "active" highlight to the fiber being processed right now.
-  if (activeId && activeId !== id) {
-    cy.getElementById(activeId).removeClass("active").addClass("done");
+  // Live highlight: previous active becomes "done", this fiber becomes active.
+  if (lastActiveId && lastActiveId !== id) {
+    cy.getElementById(lastActiveId).removeClass("active").addClass("done");
   }
-  cy.getElementById(id).addClass("active");
-  activeId = id;
+  cy.getElementById(id).removeClass("done").addClass("active");
+  lastActiveId = id;
 
   relayout();
 }
+
+// --- the movie: record + replay ---------------------------------------------
+
+function recordFrame() {
+  frames.push({ present: cy.elements().map((e) => e.id()), active: lastActiveId });
+  scrubber.max = String(frames.length - 1);
+}
+
+// Render an arbitrary recorded frame: show the elements present then, hide the
+// rest (positions are untouched, so nothing moves), and derive highlights.
+function renderFrame(i) {
+  const frame = frames[i];
+  if (!frame) return;
+  const present = new Set(frame.present);
+  cy.batch(() => {
+    cy.elements().forEach((el) => {
+      if (present.has(el.id())) {
+        el.removeClass("hidden");
+        if (el.isNode()) {
+          el.removeClass("active").removeClass("done");
+          el.addClass(el.id() === frame.active ? "active" : "done");
+        }
+      } else {
+        el.addClass("hidden");
+      }
+    });
+  });
+  updateLabel();
+}
+
+function updateLabel() {
+  const i = Number(scrubber.value);
+  frameLabel.textContent = frames.length ? `${i + 1} / ${frames.length}` : "0 / 0";
+}
+
+// --- playback controls ------------------------------------------------------
+
+function pause() {
+  if (playTimer) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
+  if (playBtn) playBtn.textContent = "▶";
+}
+
+function play() {
+  if (!frames.length) return;
+  following = false;
+  if (Number(scrubber.value) >= frames.length - 1) scrubber.value = "0";
+  renderFrame(Number(scrubber.value));
+  playBtn.textContent = "⏸";
+  playTimer = setInterval(() => {
+    let v = Number(scrubber.value);
+    if (v >= frames.length - 1) {
+      pause();
+      return;
+    }
+    v += 1;
+    scrubber.value = String(v);
+    renderFrame(v);
+  }, PLAYBACK_MS);
+}
+
+if (scrubber) {
+  scrubber.addEventListener("input", () => {
+    pause();
+    // Dragging to the far right re-enables live following.
+    following = Number(scrubber.value) >= frames.length - 1;
+    renderFrame(Number(scrubber.value));
+  });
+}
+if (playBtn) {
+  playBtn.addEventListener("click", () => (playTimer ? pause() : play()));
+}
+if (startBtn) {
+  startBtn.addEventListener("click", () => {
+    pause();
+    following = false;
+    scrubber.value = "0";
+    renderFrame(0);
+  });
+}
+
+// --- the trace hook ---------------------------------------------------------
+
+globalThis.__didactTrace = function trace(fiber) {
+  // Must never break Didact: this runs inside performUnitOfWork.
+  try {
+    draw(fiber);
+    recordFrame();
+    if (following) {
+      scrubber.value = String(frames.length - 1);
+      updateLabel();
+    } else {
+      // User is scrubbing/paused — keep their view stable as the build runs on.
+      renderFrame(Number(scrubber.value));
+    }
+  } catch (err) {
+    console.error("[fiber-viz] trace failed (ignored):", err);
+  }
+};

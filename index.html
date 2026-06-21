@@ -14,6 +14,20 @@
       <section id="graph-pane">
         <h2 class="pane-title">Fiber graph (live)</h2>
         <div id="fiber-graph"></div>
+        <div id="graph-controls">
+          <button id="graph-start" title="Jump to start">⏮</button>
+          <button id="graph-play" title="Play / pause">▶</button>
+          <input
+            id="graph-scrubber"
+            type="range"
+            min="0"
+            max="0"
+            value="0"
+            step="1"
+            aria-label="Scrub through render frames"
+          />
+          <span id="graph-frame" class="frame-label">0 / 0</span>
+        </div>
         <p class="legend">
           <span class="swatch active"></span> being worked on
           <span class="swatch done"></span> done
