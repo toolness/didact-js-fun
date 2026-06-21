@@ -6,7 +6,22 @@
     <title>Didact — build your own React</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="layout">
+      <section id="app-pane">
+        <h2 class="pane-title">App output</h2>
+        <div id="root"></div>
+      </section>
+      <section id="graph-pane">
+        <h2 class="pane-title">Fiber graph (live)</h2>
+        <div id="fiber-graph"></div>
+        <p class="legend">
+          <span class="swatch active"></span> being worked on
+          <span class="swatch done"></span> done
+          <span class="line child"></span> child
+          <span class="line sibling"></span> sibling
+        </p>
+      </section>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -3,6 +3,10 @@
 // import you'll get "Didact is not defined" at runtime.
 import Didact from "./didact.js";
 import "./style.css";
+// Installs the fiber-graph visualizer (globalThis.__didactTrace). Must come
+// before render() so the work loop is already being traced. Pure side-effect
+// import — delete this line to turn the visualization off.
+import "./instrument.js";
 
 // This is plain JSX — but it does NOT become React.createElement.
 // It becomes Didact.createElement. That's the whole point.

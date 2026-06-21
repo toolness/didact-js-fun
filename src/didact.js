@@ -80,6 +80,10 @@ function workLoop() {
 }
 
 function performUnitOfWork(fiber) {
+  // [viz hook] No-op unless the visualizer (src/instrument.js) is loaded.
+  // Safe to delete — nothing in Didact depends on it.
+  globalThis.__didactTrace?.(fiber);
+
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
