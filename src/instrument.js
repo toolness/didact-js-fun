@@ -37,6 +37,10 @@ const cy = cytoscape({
         padding: 8,
         shape: "round-rectangle",
         "background-color": "#5b4bdb",
+        // Animate only the ghost-fade (opacity), so ghost -> filled is smooth
+        // but the active cursor and effect colors stay crisp.
+        "transition-property": "opacity, background-opacity, border-opacity",
+        "transition-duration": "0.18s",
       },
     },
     { selector: "node.root", style: { "background-color": "#1a1a2e" } },
@@ -46,6 +50,23 @@ const cy = cytoscape({
     { selector: "node.eff-placement", style: { "background-color": "#23a45a" } },
     { selector: "node.eff-update", style: { "background-color": "#2f6fed" } },
     { selector: "node.eff-noop", style: { "background-color": "#9aa0ad", opacity: 0.4 } },
+    // Ghost = the previously-committed tree, shown as a faint outline that the
+    // new render fills in. Keying nodes by structural position (not fiber
+    // identity) lets them persist across renders, so this also kills the reflow.
+    {
+      selector: "node.ghost",
+      style: {
+        opacity: 0.3,
+        "background-opacity": 0.12,
+        "border-width": 1.5,
+        "border-color": "#8890a0",
+        "border-opacity": 1,
+      },
+    },
+    {
+      selector: "edge.ghost",
+      style: { opacity: 0.2 },
+    },
     {
       selector: "node.active",
       style: {
@@ -172,23 +193,28 @@ window.addEventListener("resize", realignHighlight);
 
 // --- identity & bookkeeping -------------------------------------------------
 
-const idForFiber = new WeakMap();
-let nextId = 0;
-function idFor(fiber) {
-  let id = idForFiber.get(fiber);
-  if (id === undefined) {
-    id = "f" + nextId++;
-    idForFiber.set(fiber, id);
+// A node's id is its STRUCTURAL POSITION in the tree ("r", "r.0", "r.0.1", …),
+// NOT the fiber object's identity. So the same position keeps the same node
+// across renders: re-renders reuse (and recolor) nodes instead of destroying
+// and rebuilding them — which is what removes the per-render reflow, and lets
+// the previous tree linger as a ghost the new render fills in.
+function keyFor(fiber) {
+  if (!fiber.parent) return "r";
+  let i = 0;
+  let s = fiber.parent.child;
+  while (s && s !== fiber) {
+    s = s.sibling;
+    i++;
   }
-  return id;
+  return `${keyFor(fiber.parent)}.${i}`;
 }
 
-let added = new Set(); // node ids already in the graph
-let childrenByParent = new Map(); // parent id -> [child ids] in sibling order
-let parentOf = new Map(); // child id -> parent id (so new nodes slide out of their parent)
-let fiberById = new Map(); // node id -> fiber (to find its real DOM node on hover)
+const ROOT_ID = "r";
+let childrenByParent = new Map(); // parent id -> [child ids] in sibling order (derived)
+let parentOf = new Map(); // child id -> parent id (derived)
+let fiberById = new Map(); // node id -> current fiber (to find its real DOM node on hover)
 let lastActiveId = null;
-let rootNodeId = null;
+let rootNodeId = ROOT_ID;
 const ANIM_MS = 220;
 
 // The recorded movie: one frame per trace call.
@@ -241,17 +267,39 @@ function effectClass(fiber) {
   }
 }
 
-function reset() {
-  pause();
-  cy.elements().remove();
-  added = new Set();
+// Rebuild the parent/children maps purely from the structural node ids present
+// in the graph (e.g. "r.0.1" -> parent "r.0", index 1). No incremental
+// bookkeeping to keep in sync — we derive it whenever the structure changes.
+function rebuildStructure() {
   childrenByParent = new Map();
   parentOf = new Map();
-  fiberById = new Map();
-  pinnedId = null;
-  hideHighlight();
+  for (const n of cy.nodes()) {
+    const id = n.id();
+    if (id === ROOT_ID) continue;
+    const dot = id.lastIndexOf(".");
+    const pid = id.slice(0, dot);
+    const idx = Number(id.slice(dot + 1));
+    parentOf.set(id, pid);
+    const arr = childrenByParent.get(pid) ?? [];
+    arr[idx] = id;
+    childrenByParent.set(pid, arr);
+  }
+  for (const [pid, arr] of childrenByParent) {
+    childrenByParent.set(pid, arr.filter((x) => x != null)); // drop holes
+  }
+}
+
+// Called when a new render starts (the root fiber is traced). Instead of
+// clearing the graph, we fade the whole committed tree to a ghost that the new
+// render fills in. Nodes still ghosted from the PREVIOUS pass were never
+// refilled (i.e. they were deleted), so prune them first.
+function startRenderPass() {
+  pause();
+  cy.elements(".ghost").remove(); // leftover ghosts = deletions from last pass
+  rebuildStructure();
+  cy.nodes().addClass("ghost").removeClass("active");
+  cy.edges().addClass("ghost");
   lastActiveId = null;
-  rootNodeId = null;
   frames = [];
   following = true;
   scrubber.value = "0";
@@ -374,77 +422,85 @@ function relayout() {
 // --- live build -------------------------------------------------------------
 
 function draw(fiber) {
-  if (!fiber.parent) reset();
+  if (!fiber.parent) startRenderPass();
 
-  const id = idFor(fiber);
-  fiberById.set(id, fiber);
-  if (!fiber.parent) rootNodeId = id;
+  const id = keyFor(fiber);
+  fiberById.set(id, fiber); // remember the CURRENT fiber at this position (for hover)
 
-  if (!added.has(id)) {
+  let structureChanged = false;
+
+  if (cy.getElementById(id).empty()) {
+    // Brand-new structural position → create the node and its edges.
     cy.add({
       group: "nodes",
       data: { id, label: labelFor(fiber) },
       classes: `${kindClass(fiber)} ${effectClass(fiber)}`.trim(),
     });
-    added.add(id);
-
     if (fiber.parent) {
-      const pid = idFor(fiber.parent);
-      cy.add({
-        group: "edges",
-        data: { id: `child_${pid}_${id}`, source: pid, target: id },
-        classes: "child",
-      });
-
-      const sibs = childrenByParent.get(pid) ?? [];
-      if (sibs.length) {
-        const prev = sibs[sibs.length - 1];
-        cy.add({
-          group: "edges",
-          data: { id: `sib_${prev}_${id}`, source: prev, target: id },
-          classes: "sibling",
-        });
+      const pid = keyFor(fiber.parent);
+      cy.add({ group: "edges", data: { id: `child_${id}`, source: pid, target: id }, classes: "child" });
+      const idx = Number(id.slice(id.lastIndexOf(".") + 1));
+      if (idx > 0) {
+        const prevId = `${pid}.${idx - 1}`;
+        if (cy.getElementById(prevId).nonempty()) {
+          cy.add({ group: "edges", data: { id: `sib_${id}`, source: prevId, target: id }, classes: "sibling" });
+        }
       }
-      sibs.push(id);
-      childrenByParent.set(pid, sibs);
-      parentOf.set(id, pid);
     }
+    structureChanged = true;
+  } else {
+    // Existing node (a ghost from last render, or already filled this pass) →
+    // fill it in: refresh its label and effect-tag color in place. No layout.
+    const node = cy.getElementById(id);
+    node.data("label", labelFor(fiber));
+    node.removeClass("ghost eff-placement eff-update eff-noop root text element");
+    node.addClass(`${kindClass(fiber)} ${effectClass(fiber)}`.trim());
   }
 
-  // Live highlight: previous active becomes "done", this fiber becomes active.
+  // Un-ghost this node and the edges leading into it.
+  const el = cy.getElementById(id);
+  el.removeClass("ghost");
+  el.incomers("edge").removeClass("ghost");
+
+  // Live highlight: move the "active" (being-worked-on) marker to this fiber.
   if (lastActiveId && lastActiveId !== id) {
-    cy.getElementById(lastActiveId).removeClass("active").addClass("done");
+    cy.getElementById(lastActiveId).removeClass("active");
   }
-  cy.getElementById(id).removeClass("done").addClass("active");
+  el.addClass("active");
   lastActiveId = id;
 
-  relayout();
+  // Only re-lay-out when the structure actually changed — re-renders with the
+  // same shape reuse positions, so there's no reflow.
+  if (structureChanged) {
+    rebuildStructure();
+    relayout();
+  }
 }
 
 // --- the movie: record + replay ---------------------------------------------
 
+// Snapshot the full visual state (every element's class list) after this step,
+// so the scrubber can replay the ghost -> filled progression exactly.
 function recordFrame() {
-  frames.push({ present: cy.elements().map((e) => e.id()), active: lastActiveId });
+  const states = {};
+  cy.elements().forEach((el) => {
+    states[el.id()] = el.classes().join(" ");
+  });
+  frames.push(states);
   scrubber.max = String(frames.length - 1);
 }
 
-// Render an arbitrary recorded frame: show the elements present then, hide the
-// rest (positions are untouched, so nothing moves), and derive highlights.
+// Replay a recorded frame by restoring every element's classes. Elements that
+// didn't exist yet at that frame are hidden (positions are untouched, so
+// nothing moves).
 function renderFrame(i) {
   const frame = frames[i];
   if (!frame) return;
-  const present = new Set(frame.present);
   cy.batch(() => {
     cy.elements().forEach((el) => {
-      if (present.has(el.id())) {
-        el.removeClass("hidden");
-        if (el.isNode()) {
-          el.removeClass("active").removeClass("done");
-          el.addClass(el.id() === frame.active ? "active" : "done");
-        }
-      } else {
-        el.addClass("hidden");
-      }
+      const cls = frame[el.id()];
+      if (cls === undefined) el.addClass("hidden");
+      else el.classes(cls); // restore exact classes (also clears "hidden")
     });
   });
   updateLabel();
