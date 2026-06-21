@@ -27,6 +27,10 @@ const UNIT_OF_WORK_CHUNK_SIZE = 1;
 // make it big so we can really see it happen
 const MS_BETWEEN_CHUNKS = 250;
 
+let nextUnitOfWork = null;
+
+let wipRoot = null;
+
 function createElement(type, props, ...children) {
   return {
     type,
@@ -57,16 +61,29 @@ function createDom(fiber) {
 }
 
 function render(element, container) {
-  nextUnitOfWork = {
+  wipRoot = {
     dom: container,
     props: {
       children: [element],
     }
   };
+  nextUnitOfWork = wipRoot;
   workLoop();
 }
 
-let nextUnitOfWork = null;
+function commitWork(fiber) {
+  if (fiber.parent) {
+    fiber.parent.dom.appendChild(fiber.dom);
+  }
+
+  if (fiber.child) {
+    commitWork(fiber.child);
+  }
+
+  if (fiber.sibling) {
+    commitWork(fiber.sibling);
+  }
+}
 
 function workLoop() {
   let shouldYield = false;
@@ -75,6 +92,10 @@ function workLoop() {
     unitsOfWorkDoneThisChunk += 1;
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
     shouldYield = unitsOfWorkDoneThisChunk >= UNIT_OF_WORK_CHUNK_SIZE;
+  }
+  if (!nextUnitOfWork && wipRoot) {
+    commitWork(wipRoot);
+    wipRoot = null;
   }
   setTimeout(workLoop, MS_BETWEEN_CHUNKS);
 }
@@ -86,9 +107,6 @@ function performUnitOfWork(fiber) {
 
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
-  }
-  if (fiber.parent) {
-    fiber.parent.dom.appendChild(fiber.dom);
   }
 
   const elements = fiber.props.children;
