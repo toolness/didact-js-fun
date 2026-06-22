@@ -235,6 +235,12 @@ function labelFor(fiber) {
     const clipped = text.length > 16 ? text.slice(0, 15) + "…" : text;
     return `“${clipped}”`;
   }
+  // Function components: String(fn) is the whole source text, which is
+  // unreadable in a node. Show the component's name instead (or a fallback for
+  // anonymous functions).
+  if (typeof fiber.type === "function") {
+    return fiber.type.name || "anonymous";
+  }
   return String(fiber.type);
 }
 
