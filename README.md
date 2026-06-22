@@ -2,6 +2,10 @@ This is my repo for working through Rodrigo Pombo's [**Build your own React**](h
 
 Just like Pombo's tutorial, my React is called **Didact**.
 
+Here's a demo of it in action (you can play around with it yourself [here](https://toolness.github.io/didact-js-fun/)):
+
+https://github.com/user-attachments/assets/0aed77a4-2421-4154-b03a-45711fbb2530
+
 As per the tutorial, JSX in this repo does **not** compile to `React.createElement`. It compiles to **`Didact.createElement`** — my own library in [`src/didact.js`](src/didact.js).
 
 ## Things to try
@@ -20,7 +24,7 @@ As per the tutorial, JSX in this repo does **not** compile to `React.createEleme
 
 ## Methodology
 
-* I wrote all of `src/didact.ts` myself, though a fair amount of it involved literally typing out code from Pombo's tutorial. While I normally prefer going back to first principles and re-deriving everything myself, I was limited by time. Nonetheless, typing every line out by hand did help me _understand_ what the code was doing.
+* I wrote all of `src/didact.ts` myself, though a fair amount of it involved literally typing out code from Pombo's tutorial. While I normally prefer going back to first principles and re-deriving everything myself, I was limited by time. Nonetheless, typing every line out by hand did help me _understand_ what the code was doing. I also converted the library from JS to TS partway through because the data structures were starting to confuse me and documenting & enforcing them via TypeScript helped me understand everything better.
 
 * While I wrote the core library, I was inspired by Geoffrey Litt's [AI-generated tools can make programming more fun
 ](https://www.geoffreylitt.com/2024/12/22/making-programming-more-fun-with-an-ai-generated-debugger) and had Claude generate tooling for my library which, among other things, visualized the fiber tree, highlighted new/changed elements, and provided knobs for changing the engine's parameters.
