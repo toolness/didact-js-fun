@@ -38,7 +38,7 @@ function App() {
         setValue(
           // Note that this is actually retrieving the value at the time
           // that the callback is called, which may be different from the
-          // value it had at the time that the user clicked. For the purposes
+          // value it had at the time that the user typed. For the purposes
           // of this demo app that's fine though.
           () => e.target.value.toUpperCase()
         )
