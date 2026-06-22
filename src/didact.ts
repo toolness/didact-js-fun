@@ -355,6 +355,9 @@ function commitRoot() {
   }
   currentRoot = wipRoot;
   wipRoot = null;
+  // [viz hook] Signals a full render+commit finished, so the visualizer can
+  // clear its lingering "active" marker. No-op unless the viz is loaded.
+  globalThis.__didactRenderDone?.();
 }
 
 function workLoop() {

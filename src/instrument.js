@@ -1,6 +1,7 @@
 // Fiber-graph visualizer. ENTIRELY separate from your Didact library — it just
-// listens via the single `globalThis.__didactTrace(fiber)` hook that
-// performUnitOfWork calls (the "[viz hook]" line in didact.js).
+// listens via two `globalThis` hooks Didact calls (the "[viz hook]" lines in
+// didact.ts): `__didactTrace(fiber)` per unit of work in performUnitOfWork, and
+// `__didactRenderDone()` once a full render+commit finishes.
 //
 // Two features beyond a plain live graph:
 //   1. A recorded "movie": every trace call snapshots the cumulative graph
@@ -631,5 +632,25 @@ globalThis.__didactTrace = function trace(fiber) {
     }
   } catch (err) {
     console.error("[fiber-viz] trace failed (ignored):", err);
+  }
+};
+
+// Called by Didact once a full render+commit completes. The last fiber to be
+// traced is left marked "active" (the working highlight) — nothing clears it
+// otherwise, so it lingers after the render is done. Here we drop that marker
+// and record one final "settled" frame, so neither the live view nor the
+// scrubber's end frame shows a node stuck in the working state.
+globalThis.__didactRenderDone = function renderDone() {
+  try {
+    if (!lastActiveId) return;
+    cy.getElementById(lastActiveId).removeClass("active");
+    lastActiveId = null;
+    recordFrame();
+    if (following) {
+      scrubber.value = String(frames.length - 1);
+      updateLabel();
+    }
+  } catch (err) {
+    console.error("[fiber-viz] renderDone failed (ignored):", err);
   }
 };
