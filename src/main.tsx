@@ -32,7 +32,7 @@ function App() {
     <div id="app">
       <IntroComponent frameworkName="Didact" />
       <p>
-        This JSX was transpiled to <code>Didact.createElement</code>, not React.
+        For more information on what this is all about, see the <a href="https://github.com/toolness/didact-js-fun#readme" target="_blank">GitHub README</a>.
       </p>
       <input onInput={(e) => 
         setValue(
