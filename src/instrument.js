@@ -9,10 +9,15 @@
 //   2. Siblings are ordered left-to-right in traversal order (see
 //      reorderSiblingsLTR) so the tree grows rightward, the way the DOM does.
 //
+// It also hosts the work-loop config widgets at the bottom of the pane, which
+// drive Didact's one public knob: Didact.setConfig({...}). That's the only
+// place this file reaches into the library — everything else is observe-only.
+//
 // You never need to edit this file to work through the tutorial.
 
 import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
+import Didact from "./didact.ts";
 
 cytoscape.use(dagre);
 
@@ -558,6 +563,43 @@ if (startBtn) {
     renderFrame(0);
   });
 }
+
+// --- work-loop config widgets -----------------------------------------------
+// The number inputs at the bottom of the pane drive Didact.setConfig. setConfig
+// replaces the whole Config object, so we keep a local mirror (seeded with the
+// library's defaults) and push the full object on every change.
+
+const chunkSizeInput = document.getElementById("cfg-chunk-size");
+const msBetweenInput = document.getElementById("cfg-ms-between");
+
+// Mirrors DEFAULT_CONFIG in didact.ts — keep these in sync with the inputs'
+// initial `value` attributes in index.html.
+const liveConfig = { unitOfWorkChunkSize: 1, msBetweenChunks: 1 };
+
+// Read an input as a non-negative number, falling back to the current value
+// when the field is empty or garbage (so a half-typed entry never breaks the
+// loop). `min` clamps the floor (1 for chunk size, 0 for the delay).
+function readNumber(input, fallback, min) {
+  const n = Number(input.value);
+  if (input.value === "" || Number.isNaN(n)) return fallback;
+  return Math.max(min, n);
+}
+
+function applyConfig() {
+  if (chunkSizeInput) {
+    liveConfig.unitOfWorkChunkSize = readNumber(chunkSizeInput, liveConfig.unitOfWorkChunkSize, 1);
+  }
+  if (msBetweenInput) {
+    liveConfig.msBetweenChunks = readNumber(msBetweenInput, liveConfig.msBetweenChunks, 0);
+  }
+  Didact.setConfig({ ...liveConfig });
+}
+
+if (chunkSizeInput) chunkSizeInput.addEventListener("input", applyConfig);
+if (msBetweenInput) msBetweenInput.addEventListener("input", applyConfig);
+
+// Push the initial values once so the inputs and the library agree from frame 0.
+applyConfig();
 
 // --- the trace hook ---------------------------------------------------------
 

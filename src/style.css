@@ -167,6 +167,42 @@ a {
   color: #555;
 }
 
+#graph-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+#graph-config .config-title {
+  font-weight: 600;
+  color: #333;
+}
+
+#graph-config .config-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#graph-config input[type="number"] {
+  width: 4rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  accent-color: #5b4bdb;
+}
+
+#graph-config input[type="number"]:focus {
+  outline: none;
+  border-color: #5b4bdb;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;

@@ -28,6 +28,31 @@
           />
           <span id="graph-frame" class="frame-label">0 / 0</span>
         </div>
+        <div id="graph-config">
+          <span class="config-title">Work loop</span>
+          <label class="config-field">
+            units / chunk
+            <input
+              id="cfg-chunk-size"
+              type="number"
+              min="1"
+              step="1"
+              value="1"
+              title="How many units of work the loop runs before yielding to the browser"
+            />
+          </label>
+          <label class="config-field">
+            ms / chunk
+            <input
+              id="cfg-ms-between"
+              type="number"
+              min="0"
+              step="1"
+              value="1"
+              title="How long the loop waits between chunks (setTimeout delay)"
+            />
+          </label>
+        </div>
         <p class="legend">
           <span class="swatch eff-placement"></span> added
           <span class="swatch eff-update"></span> updated
