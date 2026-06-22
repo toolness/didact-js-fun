@@ -24,7 +24,7 @@ function IntroComponent(props: { frameworkName: string }) {
   return <h1>Hello from {props.frameworkName} 👋</h1>;
 }
 
-function App(props: {}) {
+function App() {
   const [value, setValue] = Didact.useState("HALLO");
   const [count, setCount] = Didact.useState(0);
 
@@ -35,7 +35,13 @@ function App(props: {}) {
         This JSX was transpiled to <code>Didact.createElement</code>, not React.
       </p>
       <input onInput={(e) => 
-        setValue(() => e.target.value.toUpperCase())
+        setValue(
+          // Note that this is actually retrieving the value at the time
+          // that the callback is called, which may be different from the
+          // value it had at the time that the user clicked. For the purposes
+          // of this demo app that's fine though.
+          () => e.target.value.toUpperCase()
+        )
       } value={value} />
       <p>
         Count is <span>{count}</span>

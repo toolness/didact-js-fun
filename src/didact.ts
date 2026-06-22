@@ -446,7 +446,7 @@ function updateFunctionComponent(fiber: Fiber, component: FunctionComponent) {
   assertStrictEq(fiber.type, component);
   wipFiber = fiber;
   hookIndex = 0;
-  wipFiber.hooks = [];
+  assertStrictEq(wipFiber.hooks.length, 0);
   const children = [component(fiber.props)];
   reconcileChildren(fiber, children);
 }
