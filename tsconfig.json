@@ -18,6 +18,10 @@
     "allowJs": true,
     "checkJs": false,
 
+    // main.tsx imports "./didact.ts" with its extension (the repo convention).
+    // Allowed here because we only type-check (noEmit) — Vite does the build.
+    "allowImportingTsExtensions": true,
+
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
