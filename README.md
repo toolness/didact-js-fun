@@ -6,9 +6,17 @@ As per the tutorial, JSX in this repo does **not** compile to `React.createEleme
 
 ## Things to try
 
-* Click the "Increment" button and notice how updated elements have a blue overlay on them. The text input is highlighted because it attaches an event listener whose identity changes every render (I didn't implement `useCallback`/`useMemo` so there's no way to leverage that).
+* Mouse over nodes in the fiber graph to see them highlighted in the render. Note that React components aren't highlighted: that's because their fibers don't actually have DOM nodes associated with them--they just return children.
 
-* Change the "ms / chunk" value to something big like 100. This effectively simulates what happens when React has a giant render tree and/or the host system is under a lot of load: the UI _is_ still responsive, but it might not be updated for a long time.
+* Click the "Increment" button and notice how updated elements have a blue overlay on them.
+
+  (The text input is highlighted because it attaches an event listener whose identity changes every render--I didn't implement `useCallback`/`useMemo` so there's no way to leverage that.)
+
+* Change the "ms / chunk" value to something big like 100. This effectively simulates what happens when React has a giant render tree and/or the host system is under a lot of load: the UI _is_ still responsive, but it might not be updated for a while.
+
+  That said, note that it's possible to _starve_ the UI by constantly clicking "increment", and my understanding is that React won't allow that to happen: it eventually forces a commit to ensure the UI represents the user's actions accurately.
+
+  This also reveals the helpfulness of `setState` taking a callback: the callback you pass might even be called _multiple_ times depending on whether React's fiber renderer throws away in-progress fiber graphs when re-renders are triggered.
 
 ## Methodology
 
