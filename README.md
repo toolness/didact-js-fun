@@ -1,6 +1,6 @@
 This is my repo for working through Rodrigo Pombo's [**Build your own React**](https://pomb.us/build-your-own-react/).
 
-Like Pombo's post, my React is called **Didact**.
+Just like Pombo's tutorial, my React is called **Didact**.
 
 As per the tutorial, JSX in this repo does **not** compile to `React.createElement`. It compiles to **`Didact.createElement`** — my own library in [`src/didact.js`](src/didact.js).
 
