@@ -46,7 +46,4 @@ declare global {
   }
 }
 
-// Side-effect CSS imports (import "./style.css") carry no types.
-declare module "*.css";
-
 export {};
