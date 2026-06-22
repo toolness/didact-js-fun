@@ -255,3 +255,44 @@ a {
 .legend .line.sibling {
   border-top: 2px dashed #bbb;
 }
+
+/* ---- mobile / narrow screens ---- */
+
+/* On wide screens the two panes sit side by side and fill the viewport. On a
+   phone that grid (minmax(320px, …) + 1.2fr) overflows horizontally, so below
+   this breakpoint we stack the panes into one scrolling column. Because the
+   layout's height becomes content-driven, the fiber graph's `flex: 1` would
+   collapse to zero — so we give it an explicit, viewport-relative height. */
+@media (max-width: 768px) {
+  #layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  #app-pane,
+  #graph-pane {
+    padding: 1rem 1.1rem;
+  }
+
+  #app {
+    padding: 1.5rem 1.25rem;
+  }
+
+  #fiber-graph {
+    flex: none;
+    height: 65vh;
+    min-height: 300px;
+  }
+
+  /* Let the buttons + scrubber wrap rather than squeeze on a small screen. */
+  #graph-controls {
+    flex-wrap: wrap;
+  }
+
+  #graph-controls button {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1rem;
+  }
+}
