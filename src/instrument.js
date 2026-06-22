@@ -577,42 +577,66 @@ if (startBtn) {
 // replaces the whole Config object, so we keep a local mirror and push the full
 // object on every change. The mirror is SEEDED from Didact.getConfig() so the
 // widgets reflect the library's actual DEFAULT_CONFIG — no hardcoded values
-// here to drift out of sync with didact.ts (and no clobbering the real defaults
-// on load).
+// here to drift out of sync with didact.ts.
+//
+// The current values are also persisted in the URL query string
+// (?chunk=…&ms=…), so a reload or a shared link restores them. We use the query
+// string (via history.replaceState, so no history spam) purely as a viz-side
+// concern — Didact itself knows nothing about the URL.
 
 const chunkSizeInput = document.getElementById("cfg-chunk-size");
 const msBetweenInput = document.getElementById("cfg-ms-between");
 
+const CHUNK_PARAM = "chunk";
+const MS_PARAM = "ms";
+
 // A mutable copy of the library's current config (getConfig returns a copy).
 const liveConfig = Didact.getConfig();
 
-// Read an input as a non-negative number, falling back to the current value
-// when the field is empty or garbage (so a half-typed entry never breaks the
-// loop). `min` clamps the floor (1 for chunk size, 0 for the delay).
-function readNumber(input, fallback, min) {
-  const n = Number(input.value);
-  if (input.value === "" || Number.isNaN(n)) return fallback;
+// Coerce a raw value — an input's string, or a URL param that may be null — to
+// a number, falling back when it's missing/empty/garbage so a half-typed entry
+// (or a junk URL) never breaks the loop. `min` clamps the floor (1 for chunk
+// size, 0 for the delay).
+function readNumber(raw, fallback, min) {
+  if (raw === null || raw === "") return fallback;
+  const n = Number(raw);
+  if (Number.isNaN(n)) return fallback;
   return Math.max(min, n);
 }
 
-// input -> local mirror -> library
+// Persist the current config to the URL without adding a history entry, so a
+// reload or shared link restores it. Other query params are preserved.
+function writeConfigToUrl() {
+  const params = new URLSearchParams(location.search);
+  params.set(CHUNK_PARAM, String(liveConfig.unitOfWorkChunkSize));
+  params.set(MS_PARAM, String(liveConfig.msBetweenChunks));
+  history.replaceState(null, "", `${location.pathname}?${params}${location.hash}`);
+}
+
+// input -> local mirror -> library + URL
 function applyConfig() {
   if (chunkSizeInput) {
-    liveConfig.unitOfWorkChunkSize = readNumber(chunkSizeInput, liveConfig.unitOfWorkChunkSize, 1);
+    liveConfig.unitOfWorkChunkSize = readNumber(chunkSizeInput.value, liveConfig.unitOfWorkChunkSize, 1);
   }
   if (msBetweenInput) {
-    liveConfig.msBetweenChunks = readNumber(msBetweenInput, liveConfig.msBetweenChunks, 0);
+    liveConfig.msBetweenChunks = readNumber(msBetweenInput.value, liveConfig.msBetweenChunks, 0);
   }
   Didact.setConfig({ ...liveConfig });
+  writeConfigToUrl();
 }
 
 if (chunkSizeInput) chunkSizeInput.addEventListener("input", applyConfig);
 if (msBetweenInput) msBetweenInput.addEventListener("input", applyConfig);
 
-// Reflect the library's defaults into the inputs (overwriting the placeholder
-// values in index.html), so the UI matches Didact's config from frame 0. We
-// pull FROM the library here rather than pushing TO it, leaving DEFAULT_CONFIG
-// untouched.
+// On load, let any URL params override the library defaults, then push the
+// result to the library and reflect it into the inputs (overwriting the
+// placeholder values in index.html) — so library, UI, and URL all agree from
+// frame 0. We don't write the URL here: an un-customized visit keeps a clean
+// URL until the user actually changes something.
+const initialParams = new URLSearchParams(location.search);
+liveConfig.unitOfWorkChunkSize = readNumber(initialParams.get(CHUNK_PARAM), liveConfig.unitOfWorkChunkSize, 1);
+liveConfig.msBetweenChunks = readNumber(initialParams.get(MS_PARAM), liveConfig.msBetweenChunks, 0);
+Didact.setConfig({ ...liveConfig });
 if (chunkSizeInput) chunkSizeInput.value = String(liveConfig.unitOfWorkChunkSize);
 if (msBetweenInput) msBetweenInput.value = String(liveConfig.msBetweenChunks);
 
