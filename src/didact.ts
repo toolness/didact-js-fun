@@ -32,7 +32,11 @@ type Fiber = {
 
 type EffectTag = "UPDATE" | "PLACEMENT" | "DELETION";
 
-export type ElementType = keyof HTMLElementTagNameMap | typeof TEXT_ELEMENT
+export type FunctionComponent = (props: Props) => Element;
+
+export type HostComponentType = keyof HTMLElementTagNameMap | typeof TEXT_ELEMENT
+
+export type ElementType = HostComponentType | FunctionComponent
 
 export type Element = {
   type: ElementType;
@@ -72,7 +76,7 @@ function setConfig(newConfig: Config) {
   config = newConfig;
 }
 
-function createElement(type: string, props: Omit<Props, "children">, ...children: Array<Element|string>) {
+function createElement(type: ElementType, props: Omit<Props, "children">, ...children: Array<Element|string>) {
   return {
     type,
     props: {
@@ -94,14 +98,12 @@ function createTextElement(text: string) {
   };
 }
 
-function createDom(fiber: Fiber) {
-  if (fiber.type === null) {
-    throw new Error("fiber type must be defined");
-  }
+function createDom(fiber: Fiber, type: HostComponentType) {
+  assertStrictEq(fiber.type, type);
   const dom =
-    fiber.type === TEXT_ELEMENT
+    type === TEXT_ELEMENT
       ? document.createTextNode("")
-      : document.createElement(fiber.type);
+      : document.createElement(type);
   updateDom(dom, { children: [] }, fiber.props);
   return dom;
 }
@@ -149,35 +151,61 @@ function unreachable(thing: never) {
   throw new Error("unreachable code reached! wut");
 }
 
+function assertStrictEq(a: unknown, b: unknown)  {
+  if (a !== b) {
+    throw new Error("Assertion failure, args are not equal");
+  }
+}
+
+function commitDeletion(fiber: Fiber, domParent: HTMLElement | Text) {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom);
+  } else if (fiber.child) {
+    commitDeletion(fiber.child, domParent);
+  } else {
+    // We can relax this if/when we start supporting function components
+    // that return null, etc, but right now we don't support them.
+    throw new Error("fiber must have a descendant that is a DOM node");
+  }
+}
+
 function commitWork(fiber: Fiber) {
-  if (!fiber.dom) {
-    throw new Error("fiber must have dom")
+  let domParentFiber = fiber.parent;
+
+  while (domParentFiber && !domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent;
   }
 
-  if (!fiber.parent?.dom) {
-    throw new Error("fiber parent must exist and have dom");
+  if (!domParentFiber?.dom) {
+    throw new Error("a fiber ancestor must have a dom node");
   }
 
   if (!fiber.effectTag) {
     throw new Error("fiber must have an effect tag");
   }
 
-  const domParent = fiber.parent.dom;
+  const domParent = domParentFiber.dom;
 
   switch (fiber.effectTag) {
     case "PLACEMENT":
-      domParent.appendChild(fiber.dom);
+      // Note that fiber.dom will be null on function components.
+      if (fiber.dom) {
+        domParent.appendChild(fiber.dom);
+      }
       break;
 
     case "UPDATE":
       if (!fiber.alternate) {
         throw new Error("fiber must have alternate for update!")
       }
-      updateDom(fiber.dom, fiber.alternate.props, fiber.props)
+      // Note that fiber.dom will be null on function components.
+      if (fiber.dom) {
+        updateDom(fiber.dom, fiber.alternate.props, fiber.props)
+      }
       break;
 
     case "DELETION":
-      domParent.removeChild(fiber.dom);
+      commitDeletion(fiber, domParent);
       break;
 
     default:
@@ -328,16 +356,33 @@ function reconcileChildren(wipFiber: Fiber, elements: Element[]) {
   }
 }
 
+function updateHostComponent(fiber: Fiber, type: HostComponentType) {
+  assertStrictEq(fiber.type, type);
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber, type);
+  }
+  reconcileChildren(fiber, fiber.props.children);
+}
+
+function updateFunctionComponent(fiber: Fiber, component: FunctionComponent) {
+  assertStrictEq(fiber.type, component);
+  const children = [component(fiber.props)];
+  reconcileChildren(fiber, children);
+}
+
 function performUnitOfWork(fiber: Fiber): Fiber | null {
   // [viz hook] No-op unless the visualizer (src/instrument.js) is loaded.
   // Safe to delete — nothing in Didact depends on it.
   globalThis.__didactTrace?.(fiber);
 
-  if (!fiber.dom) {
-    fiber.dom = createDom(fiber);
+  if (typeof fiber.type === "function") {
+    updateFunctionComponent(fiber, fiber.type);
+  } else if (fiber.type === null) {
+    // This is the root component.
+    reconcileChildren(fiber, fiber.props.children);
+  } else {
+    updateHostComponent(fiber, fiber.type);
   }
-
-  reconcileChildren(fiber, fiber.props.children);
 
   if (fiber.child) {
     return fiber.child;

@@ -13,12 +13,16 @@ import "./debug-overlay.js";
 
 const container = document.getElementById("root");
 
+function IntroComponent(props) {
+  return <h1>Hello from {props.frameworkName} 👋</h1>
+}
+
 // This is plain JSX — but it does NOT become React.createElement.
 // It becomes Didact.createElement. That's the whole point.
 const rerender = (value, count) => {
   const element = (
     <div id="app">
-      <h1>Hello from Didact 👋</h1>
+      <IntroComponent frameworkName="Didact" />
       <p>
         This JSX was transpiled to <code>Didact.createElement</code>, not React.
       </p>
