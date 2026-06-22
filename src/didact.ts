@@ -63,7 +63,9 @@ export type Config = {
 
 const DEFAULT_CONFIG: Config = {
   unitOfWorkChunkSize: 1,
-  msBetweenChunks: 1
+  // Make this small enough to be fast, but big enough that it's easy
+  // for the rendering to fall behind user actions.
+  msBetweenChunks: 10
 }
 
 let config: Config = DEFAULT_CONFIG;
