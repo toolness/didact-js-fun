@@ -10,8 +10,9 @@
 //      reorderSiblingsLTR) so the tree grows rightward, the way the DOM does.
 //
 // It also hosts the work-loop config widgets at the bottom of the pane, which
-// drive Didact's one public knob: Didact.setConfig({...}). That's the only
-// place this file reaches into the library — everything else is observe-only.
+// read and drive Didact's config knobs (Didact.getConfig / Didact.setConfig).
+// That's the only place this file reaches into the library — everything else
+// is observe-only.
 //
 // You never need to edit this file to work through the tutorial.
 
@@ -572,15 +573,17 @@ if (startBtn) {
 
 // --- work-loop config widgets -----------------------------------------------
 // The number inputs at the bottom of the pane drive Didact.setConfig. setConfig
-// replaces the whole Config object, so we keep a local mirror (seeded with the
-// library's defaults) and push the full object on every change.
+// replaces the whole Config object, so we keep a local mirror and push the full
+// object on every change. The mirror is SEEDED from Didact.getConfig() so the
+// widgets reflect the library's actual DEFAULT_CONFIG — no hardcoded values
+// here to drift out of sync with didact.ts (and no clobbering the real defaults
+// on load).
 
 const chunkSizeInput = document.getElementById("cfg-chunk-size");
 const msBetweenInput = document.getElementById("cfg-ms-between");
 
-// Mirrors DEFAULT_CONFIG in didact.ts — keep these in sync with the inputs'
-// initial `value` attributes in index.html.
-const liveConfig = { unitOfWorkChunkSize: 1, msBetweenChunks: 1 };
+// A mutable copy of the library's current config (getConfig returns a copy).
+const liveConfig = Didact.getConfig();
 
 // Read an input as a non-negative number, falling back to the current value
 // when the field is empty or garbage (so a half-typed entry never breaks the
@@ -591,6 +594,7 @@ function readNumber(input, fallback, min) {
   return Math.max(min, n);
 }
 
+// input -> local mirror -> library
 function applyConfig() {
   if (chunkSizeInput) {
     liveConfig.unitOfWorkChunkSize = readNumber(chunkSizeInput, liveConfig.unitOfWorkChunkSize, 1);
@@ -604,8 +608,12 @@ function applyConfig() {
 if (chunkSizeInput) chunkSizeInput.addEventListener("input", applyConfig);
 if (msBetweenInput) msBetweenInput.addEventListener("input", applyConfig);
 
-// Push the initial values once so the inputs and the library agree from frame 0.
-applyConfig();
+// Reflect the library's defaults into the inputs (overwriting the placeholder
+// values in index.html), so the UI matches Didact's config from frame 0. We
+// pull FROM the library here rather than pushing TO it, leaving DEFAULT_CONFIG
+// untouched.
+if (chunkSizeInput) chunkSizeInput.value = String(liveConfig.unitOfWorkChunkSize);
+if (msBetweenInput) msBetweenInput.value = String(liveConfig.msBetweenChunks);
 
 // --- the trace hook ---------------------------------------------------------
 

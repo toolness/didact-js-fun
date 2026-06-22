@@ -85,7 +85,11 @@ let wipFiber: Fiber | null = null;
 let hookIndex = 0;
 
 function setConfig(newConfig: Config) {
-  config = newConfig;
+  config = {...newConfig};
+}
+
+function getConfig(): Config {
+  return {...config};
 }
 
 function useState<T>(initial: T): [T, (action: (prev: T) => T) => void] {
@@ -488,7 +492,8 @@ const Didact = {
   render,
   Fragment,
   useState,
-  setConfig
+  setConfig,
+  getConfig
 };
 
 export default Didact;
