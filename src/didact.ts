@@ -46,11 +46,17 @@ export type Props = {
 
 const TEXT_ELEMENT = "TEXT_ELEMENT";
 
-// We're just going to perform a fixed amount of work before giving control back to the browser, it makes it easier to see this thing working in practice.
-const UNIT_OF_WORK_CHUNK_SIZE = 1;
+export type Config = {
+  unitOfWorkChunkSize: number;
+  msBetweenChunks: number;
+};
 
-// make it big so we can really see it happen
-const MS_BETWEEN_CHUNKS = 1;
+const DEFAULT_CONFIG: Config = {
+  unitOfWorkChunkSize: 1,
+  msBetweenChunks: 1
+}
+
+let config: Config = DEFAULT_CONFIG;
 
 let nextUnitOfWork: Fiber|null = null;
 
@@ -61,6 +67,10 @@ let currentRoot: Fiber | null = null;
 let deletions: Fiber[] = [];
 
 let isInitialized = false;
+
+function setConfig(newConfig: Config) {
+  config = newConfig;
+}
 
 function createElement(type: string, props: Omit<Props, "children">, ...children: Array<Element|string>) {
   return {
@@ -245,12 +255,12 @@ function workLoop() {
   while (nextUnitOfWork && !shouldYield) {
     unitsOfWorkDoneThisChunk += 1;
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
-    shouldYield = unitsOfWorkDoneThisChunk >= UNIT_OF_WORK_CHUNK_SIZE;
+    shouldYield = unitsOfWorkDoneThisChunk >= config.unitOfWorkChunkSize;
   }
   if (!nextUnitOfWork) {
     commitRoot();
   }
-  setTimeout(workLoop, MS_BETWEEN_CHUNKS);
+  setTimeout(workLoop, config.msBetweenChunks);
 }
 
 function reconcileChildren(wipFiber: Fiber, elements: Element[]) {
@@ -350,6 +360,7 @@ const Didact = {
   createElement,
   render,
   Fragment,
+  setConfig
 };
 
 export default Didact;
