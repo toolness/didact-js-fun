@@ -24,23 +24,25 @@ function IntroComponent(props: { frameworkName: string }) {
   return <h1>Hello from {props.frameworkName} 👋</h1>;
 }
 
-// This is plain JSX — but it does NOT become React.createElement.
-// It becomes Didact.createElement. That's the whole point.
-const rerender = (value: string, count: number) => {
-  const element = (
+function App(props: {}) {
+  const [value, setValue] = Didact.useState("HALLO");
+  const [count, setCount] = Didact.useState(0);
+
+  return (
     <div id="app">
       <IntroComponent frameworkName="Didact" />
       <p>
         This JSX was transpiled to <code>Didact.createElement</code>, not React.
       </p>
-      <input onInput={(e) => rerender(e.target.value.toUpperCase(), count)} value={value} />
+      <input onInput={(e) => 
+        setValue(() => e.target.value.toUpperCase())
+      } value={value} />
       <p>
         Count is <span>{count}</span>
       </p>
-      <button onClick={() => rerender(value, count + 1)}>Increment</button>
+      <button onClick={() => setCount((count) => count + 1)}>Increment</button>
     </div>
   );
-  Didact.render(element, container);
-};
+}
 
-rerender("HALLO", 0);
+Didact.render(<App />, container);

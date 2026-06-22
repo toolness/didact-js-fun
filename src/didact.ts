@@ -19,6 +19,11 @@
 //   Step VII  — Function Components
 //   Step VIII — Hooks (useState)
 
+type Hook<T> = {
+  state: T,
+  queue: Array<(prev: T) => T>,
+};
+
 type Fiber = {
   type: ElementType | null,
   parent: Fiber | null,
@@ -28,6 +33,7 @@ type Fiber = {
   effectTag: EffectTag | null,
   props: Props,
   dom: HTMLElement | Text | null
+  hooks: Hook<any>[]
 }
 
 type EffectTag = "UPDATE" | "PLACEMENT" | "DELETION";
@@ -72,8 +78,51 @@ let deletions: Fiber[] = [];
 
 let isInitialized = false;
 
+let wipFiber: Fiber | null = null;
+
+let hookIndex = 0;
+
 function setConfig(newConfig: Config) {
   config = newConfig;
+}
+
+function useState<T>(initial: T): [T, (action: (prev: T) => T) => void] {
+  if (!wipFiber) {
+    throw new Error("useState must be called inside a function component");
+  }
+
+  const oldHook: Hook<T> | undefined = wipFiber.alternate?.hooks?.[hookIndex];
+
+  const hook: Hook<T> = {
+    state: oldHook ? oldHook.state : initial,
+    queue: []
+  }
+
+  // This is pretty important: due to all kinds of other sources of
+  // re-rendering, which aborts the current render, as well as other potential
+  // busy-work on the main thread, our last actual hook state may be woefully
+  // out of date. For example, the user may have clicked an "increment counter"
+  // button 2 times since our last full render.
+  // 
+  // What's currently mounted to the DOM refers to its state, meaning that every
+  // time the user clicked that button, it queued an action on the *old* hook's
+  // queue. We're going to process all those now to make sure our new hook state
+  // is up-to-date.
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach(action => {
+    hook.state = action(hook.state);
+  });
+
+  // TODO: It'd be nice if this had a stable identity like React's setState
+  // does, but that seems to be outside the scope of the tutorial.
+  const setState = (action: (prev: T) => T) => {
+    hook.queue.push(action);
+    scheduleRerender();
+  }
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+  return [hook.state, setState];
 }
 
 function createElement(type: ElementType, props: Omit<Props, "children">, ...children: Array<Element|string>) {
@@ -125,6 +174,30 @@ function debugLog(...args: any[]) {
   console.log("Didact:", ...args);
 }
 
+function scheduleRerender() {
+  if (!currentRoot) {
+    // TODO: Should we actually throw here? Seems like this
+    // should never happen since this is an internal function
+    // that is only called when we've committed at least once...
+    return;
+  }
+
+  wipRoot = {
+    type: null,
+    parent: null,
+    child: null,
+    sibling: null,
+    dom: currentRoot.dom,
+    props: currentRoot.props,
+    alternate: currentRoot,
+    effectTag: null,
+    hooks: []
+  }
+  // Note that this means we will effectively ABORT any in-progress render.
+  nextUnitOfWork = wipRoot;
+  deletions = [];
+}
+
 function render(element: Element, container: HTMLElement) {
   debugLog("Starting render.");
   wipRoot = {
@@ -137,7 +210,8 @@ function render(element: Element, container: HTMLElement) {
       children: [element],
     },
     alternate: currentRoot,
-    effectTag: null
+    effectTag: null,
+    hooks: []
   };
   deletions = [];
   nextUnitOfWork = wipRoot;
@@ -313,6 +387,7 @@ function reconcileChildren(wipFiber: Fiber, elements: Element[]) {
           child: null,
           sibling: null,
           alternate: oldFiber,
+          hooks: [],
           effectTag: "UPDATE"
         };
       }
@@ -327,6 +402,7 @@ function reconcileChildren(wipFiber: Fiber, elements: Element[]) {
         child: null,
         sibling: null,
         alternate: null,
+        hooks: [],
         effectTag: "PLACEMENT"
       }
     }
@@ -366,6 +442,9 @@ function updateHostComponent(fiber: Fiber, type: HostComponentType) {
 
 function updateFunctionComponent(fiber: Fiber, component: FunctionComponent) {
   assertStrictEq(fiber.type, component);
+  wipFiber = fiber;
+  hookIndex = 0;
+  wipFiber.hooks = [];
   const children = [component(fiber.props)];
   reconcileChildren(fiber, children);
 }
@@ -399,12 +478,14 @@ function performUnitOfWork(fiber: Fiber): Fiber | null {
   return null
 }
 
+// TODO: This isn't actually supported yet.
 const Fragment = "FRAGMENT";
 
 const Didact = {
   createElement,
   render,
   Fragment,
+  useState,
   setConfig
 };
 
