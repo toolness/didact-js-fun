@@ -2,9 +2,11 @@ This is my repo for working through Rodrigo Pombo's [**Build your own React**](h
 
 Just like Pombo's tutorial, my React is called **Didact**.
 
-Here's a demo of it in action (you can play around with it yourself [here](https://toolness.github.io/didact-js-fun/)):
+Below is a demo of it in action, with knobs tuned to simulate a React that's under heavy load--hence the constant re-building of the Fiber graph as I repeatedly click the "Increment" button.
 
 https://github.com/user-attachments/assets/0aed77a4-2421-4154-b03a-45711fbb2530
+
+You can play around with it yourself [here](https://toolness.github.io/didact-js-fun/)).
 
 As per the tutorial, JSX in this repo does **not** compile to `React.createElement`. It compiles to **`Didact.createElement`** — my own library in [`src/didact.js`](src/didact.js).
 
