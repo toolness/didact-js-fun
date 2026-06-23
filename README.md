@@ -22,7 +22,7 @@ As per the tutorial, JSX in this repo does **not** compile to `React.createEleme
 
   That said, note that it's possible to _starve_ the UI by constantly clicking "increment", and my understanding is that React won't allow that to happen: it eventually forces a commit to ensure the UI represents the user's actions accurately.
 
-  This also reveals the helpfulness of `setState` taking a callback: the callback you pass might even be called _multiple_ times depending on whether React's fiber renderer throws away in-progress fiber graphs when re-renders are triggered.
+  This also reveals the helpfulness of `useState` setters taking a callback: the callback you pass might even be called _multiple_ times depending on whether React's fiber renderer throws away in-progress fiber graphs when re-renders are triggered.
 
 ## Methodology
 
