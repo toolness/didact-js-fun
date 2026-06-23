@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/0aed77a4-2421-4154-b03a-45711fbb2530
 
 You can play around with it yourself [here](https://toolness.github.io/didact-js-fun/)).
 
-As per the tutorial, JSX in this repo does **not** compile to `React.createElement`. It compiles to **`Didact.createElement`** — my own library in [`src/didact.js`](src/didact.js).
+As per the tutorial, JSX in this repo does **not** compile to `React.createElement`. It compiles to **`Didact.createElement`** — my own library in [`src/didact.ts`](src/didact.ts).
 
 ## Things to try
 
